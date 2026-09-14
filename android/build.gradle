@@ -1,0 +1,38 @@
+buildscript {
+    ext {
+        buildToolsVersion = "35.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 35
+        targetSdkVersion = 34
+        ndkVersion = "26.1.10909125"
+        kotlinVersion = "1.9.24"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+
+// react-native-share-menu@6.0.0 hardcodes compileSdkVersion 29/buildToolsVersion
+// 29.0.2 in its own build.gradle and hasn't been updated since 2022. Modern AGP
+// refuses to compile it as-is ("please set compileSdkVersion to 30 or above").
+// Force every Android library subproject onto this project's SDK versions. Must
+// be registered before "com.facebook.react.rootproject" is applied below, which
+// evaluates some subprojects eagerly during autolinking.
+subprojects { subproject ->
+    afterEvaluate {
+        if (subproject.plugins.hasPlugin("com.android.library")) {
+            subproject.android {
+                compileSdkVersion rootProject.ext.compileSdkVersion
+                buildToolsVersion rootProject.ext.buildToolsVersion
+            }
+        }
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
