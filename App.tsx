@@ -14,6 +14,7 @@ import Animated, {
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {cast} from './src/castClient';
+import {useClipboardUrl} from './src/useClipboardUrl';
 import {startDiscovery, type Receiver} from './src/discovery';
 import {useSharedContent, type SharedPayload} from './src/useSharedContent';
 
@@ -29,6 +30,7 @@ const TEST_URL = 'https://en.wikipedia.org/wiki/Iron_Man';
 export default function App() {
   const {height} = useWindowDimensions();
   const shared = useSharedContent();
+  const clipboardUrl = useClipboardUrl();
 
   const [receiver, setReceiver] = useState<Receiver | null>(null);
   const [payload, setPayload] = useState<SharedPayload | null>(null);
@@ -41,6 +43,12 @@ export default function App() {
   useEffect(() => {
     if (shared) setPayload(shared);
   }, [shared]);
+
+  // A real Share and a copy-then-switch are both "the user just handed
+  // Flick something new" -- same priority, whichever happens last wins.
+  useEffect(() => {
+    if (clipboardUrl) setPayload({url: clipboardUrl});
+  }, [clipboardUrl]);
 
   useEffect(() => {
     const stop = startDiscovery(

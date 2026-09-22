@@ -9,6 +9,7 @@
     "pods": "cd ios && pod install && cd .."
   },
   "dependencies": {
+    "@react-native-clipboard/clipboard": "1.14.3",
     "react": "18.3.1",
     "react-native": "0.76.5",
     "react-native-gesture-handler": "2.20.2",
