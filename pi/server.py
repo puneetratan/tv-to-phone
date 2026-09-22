@@ -124,6 +124,36 @@ async def cast(payload: CastRequest):
     return {"ok": True, "screens": len(connected)}
 
 
+@app.post("/cast-image")
+async def cast_image(file: UploadFile = File(...)):
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(400, "expected an image/* upload")
+
+    received_at_ms = int(time.time() * 1000)
+    suffix = Path(file.filename or "").suffix or ".jpg"
+    name = f"{uuid.uuid4().hex}{suffix}"
+    (UPLOAD_DIR / name).write_bytes(await file.read())
+
+    # Reuses the same "cast" message shape as a link -- the kiosk page
+    # already knows how to point its iframe at a URL, and a browser renders
+    # an image opened directly just as well as a page, so receiver.html
+    # needs no changes to display a photo.
+    url = f"/uploads/{name}"
+    log.info("cast image=%s screens=%d", name, len(connected))
+
+    await _broadcast({
+        "type": "cast",
+        "url": url,
+        "text": None,
+        "title": None,
+        "kind": "image",
+        "sent_at_ms": None,
+        "received_at_ms": received_at_ms,
+    })
+
+    return {"ok": True, "screens": len(connected)}
+
+
 @app.post("/clear")
 async def clear():
     await _broadcast({"type": "clear"})
