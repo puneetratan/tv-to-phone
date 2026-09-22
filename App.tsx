@@ -112,7 +112,9 @@ export default function App() {
     opacity: opacity.value,
   }));
 
-  const label = payload?.url ?? payload?.text ?? 'Nothing loaded yet. Tap to load a test link.';
+  const label = payload?.imageUri
+    ? 'Photo ready to send'
+    : payload?.url ?? payload?.text ?? 'Nothing loaded yet. Tap to load a test link.';
   const hint = payload ? 'Flick up to send' : 'Share a link into this app, then flick it up';
 
   return (

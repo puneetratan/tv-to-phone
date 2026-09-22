@@ -11,10 +11,12 @@ Run with: .venv/bin/uvicorn server:app --host 0.0.0.0 --port 8000
 
 import logging
 import time
+import uuid
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qs, urlsplit
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -27,6 +29,10 @@ app = FastAPI()
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 connected: set[WebSocket] = set()
 
 
@@ -38,6 +44,34 @@ class CastRequest(BaseModel):
     # Meaningless until Stage 4 syncs the phone's and Pi's clocks. Recorded on
     # every cast anyway so there is real data to calibrate against later.
     sent_at_ms: Optional[int] = None
+
+
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com"}
+
+
+def _youtube_embed_url(url: str) -> str:
+    """Rewrites a regular YouTube watch/shorts/share link to its /embed/
+    form. Regular youtube.com pages send X-Frame-Options/frame-ancestors
+    headers that refuse to load in the kiosk's iframe at all -- the /embed/
+    path is the one YouTube itself designed to be iframe-able. Links that
+    aren't YouTube, or that YouTube doesn't have to embed, pass through
+    unchanged.
+    """
+    parts = urlsplit(url)
+    host = parts.netloc.lower()
+    video_id: Optional[str] = None
+
+    if host in YOUTUBE_HOSTS:
+        if parts.path == "/watch":
+            video_id = parse_qs(parts.query).get("v", [None])[0]
+        elif parts.path.startswith("/shorts/"):
+            video_id = parts.path.removeprefix("/shorts/").split("/")[0]
+    elif host in {"youtu.be", "www.youtu.be"}:
+        video_id = parts.path.lstrip("/").split("/")[0]
+
+    if not video_id:
+        return url
+    return f"https://www.youtube.com/embed/{video_id}"
 
 
 async def _broadcast(message: dict) -> None:
@@ -64,14 +98,22 @@ async def health():
 async def cast(payload: CastRequest):
     received_at_ms = int(time.time() * 1000)
     delta_ms = received_at_ms - payload.sent_at_ms if payload.sent_at_ms else None
+
+    url = payload.url
+    if url:
+        embed_url = _youtube_embed_url(url)
+        if embed_url != url:
+            log.info("rewrote %s -> %s", url, embed_url)
+            url = embed_url
+
     log.info(
         "cast url=%s text=%s title=%s delta_ms=%s screens=%d",
-        payload.url, payload.text, payload.title, delta_ms, len(connected),
+        url, payload.text, payload.title, delta_ms, len(connected),
     )
 
     await _broadcast({
         "type": "cast",
-        "url": payload.url,
+        "url": url,
         "text": payload.text,
         "title": payload.title,
         "kind": payload.kind,
