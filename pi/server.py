@@ -71,7 +71,9 @@ def _youtube_embed_url(url: str) -> str:
 
     if not video_id:
         return url
-    return f"https://www.youtube.com/embed/{video_id}"
+    # autoplay=1 because the player otherwise waits on a big play button
+    # that nothing on a TV can press.
+    return f"https://www.youtube.com/embed/{video_id}?autoplay=1"
 
 
 async def _broadcast(message: dict) -> None:
@@ -134,10 +136,9 @@ async def cast_image(file: UploadFile = File(...)):
     name = f"{uuid.uuid4().hex}{suffix}"
     (UPLOAD_DIR / name).write_bytes(await file.read())
 
-    # Reuses the same "cast" message shape as a link -- the kiosk page
-    # already knows how to point its iframe at a URL, and a browser renders
-    # an image opened directly just as well as a page, so receiver.html
-    # needs no changes to display a photo.
+    # Same "cast" message shape as a link. kind="image" is what tells the
+    # kiosk page to show it in a fit-to-screen <img> rather than an iframe,
+    # where a full-resolution photo would be drawn at full pixel size.
     url = f"/uploads/{name}"
     log.info("cast image=%s screens=%d", name, len(connected))
 

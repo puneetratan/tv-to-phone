@@ -29,6 +29,14 @@
     border: 0;
     display: none;
   }
+  #photo {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+  }
   #text {
     position: fixed;
     inset: 0;
@@ -45,7 +53,8 @@
 </head>
 <body>
   <div id="idle">Waiting for a cast&hellip;</div>
-  <iframe id="frame"></iframe>
+  <iframe id="frame" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
+  <img id="photo" alt="" />
   <div id="text"></div>
 
 <script>
@@ -60,32 +69,49 @@
 
 const idle = document.getElementById('idle');
 const frame = document.getElementById('frame');
+const photo = document.getElementById('photo');
 const text = document.getElementById('text');
 
+const IMAGE_URL = /\.(jpe?g|png|gif|webp|bmp|avif)([?#]|$)/i;
+
+// One view at a time. Blanking the frame and photo as well as hiding them
+// stops a previous cast from playing or holding memory behind the new one.
+function show(view) {
+  idle.style.display = view === idle ? 'flex' : 'none';
+  frame.style.display = view === frame ? 'block' : 'none';
+  photo.style.display = view === photo ? 'block' : 'none';
+  text.style.display = view === text ? 'flex' : 'none';
+  if (view !== frame) frame.src = 'about:blank';
+  if (view !== photo) photo.removeAttribute('src');
+}
+
 function showIdle() {
-  idle.style.display = 'flex';
-  frame.style.display = 'none';
-  frame.src = 'about:blank';
-  text.style.display = 'none';
+  show(idle);
 }
 
 function showUrl(url) {
-  idle.style.display = 'none';
-  text.style.display = 'none';
   frame.src = url;
-  frame.style.display = 'block';
+  show(frame);
+}
+
+// A raw image opened in an iframe is drawn at full pixel size, because
+// Chrome only shrinks an image to fit in a top-level page. A phone photo
+// would show as an enormous crop of its top-left corner, so images get an
+// <img> that is scaled to fit the screen instead.
+function showPhoto(url) {
+  photo.src = url;
+  show(photo);
 }
 
 function showText(value) {
-  idle.style.display = 'none';
-  frame.style.display = 'none';
-  frame.src = 'about:blank';
   text.textContent = value;
-  text.style.display = 'flex';
+  show(text);
 }
 
 function handleCast(msg) {
-  if (msg.url) {
+  if (msg.url && (msg.kind === 'image' || IMAGE_URL.test(msg.url))) {
+    showPhoto(msg.url);
+  } else if (msg.url) {
     showUrl(msg.url);
   } else if (msg.text) {
     showText(msg.text);
